@@ -263,7 +263,7 @@ if __name__ == "__main__":
     sheet_api = create_service()
 
     # Kovaaks has its data in the stats folder
-    elif config["game"] == "Kovaaks":
+    if config["game"] == "Kovaaks":
         logging.debug("Game: Kovaaks")
         logging.debug("Initializing scenario data...")
         scenarios = init_scenario_data_kovaaks(config, sheet_api)

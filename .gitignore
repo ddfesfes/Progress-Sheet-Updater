@@ -51,6 +51,7 @@ coverage.xml
 
 config.json
 credentials.json
+*.spec
 
 # Translations
 *.mo
