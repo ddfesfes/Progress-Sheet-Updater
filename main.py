@@ -19,7 +19,6 @@ from watchdog.observers import Observer
 from errors import handle_error
 from gui import Gui
 from sheets import create_service, read_sheet_range, validate_sheet_range, write_to_cell
-from conf import AIMLAB_DB_PATH
 
 def remove_commas(number_str):
     return re.sub(r',', '', number_str)
@@ -88,90 +87,12 @@ def init_scenario_data_kovaaks(config: dict, sheet_api: googleapiclient.discover
 
     return scens
 
-
-def init_scenario_data_aimlab(config: dict, sheet_api: googleapiclient.discovery.Resource) -> dict:
-    hs_cells_iter = cells_from_sheet_ranges(config['aimlab_score_ranges'])
-    avg_cells_iter = cells_from_sheet_ranges(config['aimlab_average_ranges'])
-
-    scens = {}
-
-    i = 0
-    for r in config['aimlab_name_ranges']:
-        for s in read_sheet_range(sheet_api, config["sheet_id_aimlab"], r):
-            if s not in scens:
-                scens[s] = Scenario()
-
-            scens[s].hs_cells.append(next(hs_cells_iter))
-            scens[s].avg_cells.append(next(avg_cells_iter))
-            scens[s].ids.append(i)
-            i += 1
-
-    highscores = []
-    for r in config['aimlab_score_ranges']:
-        highscores += map(lambda x: float(x), read_sheet_range(sheet_api, config["sheet_id_aimlab"], r))
-
-    averages = []
-    for r in config['aimlab_average_ranges']:
-        averages += map(lambda x: float(x), read_sheet_range(sheet_api, config["sheet_id_aimlab"], r))
-
-    if len(highscores) < len(scens):  # Require highscore cells but not averages
-        handle_error('range_size')
-
-    for s in scens:
-        scens[s].hs = min([highscores[i] for i in scens[s].ids])
-        scens[s].avg = min([averages[i] for i in scens[s].ids])
-
-    return scens
-
-
 def read_score_from_file(file_path: str) -> float:
     with open(file_path, newline='') as csvfile:
         for row in csv.reader(csvfile):
             if row and row[0] == 'Score:':
                 return round(float(row[1]), 1)
     return 0.0
-
-
-def update_aimlab(config: dict, scens: dict, cs_level_ids: dict, blacklist: dict) -> None:
-    new_hs = set()
-    new_avgs = set()
-
-    # Open db connection
-    con = sqlite3.connect(AIMLAB_DB_PATH)
-    cur = con.cursor()
-
-    # Get scores from the database
-    result = []
-    for csid, name in cs_level_ids.items():
-        cur.execute(
-            f"SELECT taskName, score FROM TaskData WHERE taskName = ? AND createDate > date(?)",
-            [csid, blacklist[name]])
-        temp = cur.fetchall()
-        result.extend(temp)
-
-    for s in result:
-        name = cs_level_ids[s[0]]
-        score = s[1]
-        if score > scens[name].hs:
-            scens[name].hs = score
-            new_hs.add(name)
-
-        if config['calculate_averages']:
-            scens[name].recent_scores.append(score)  # Will be last N runs if files are fed chronologically
-            if len(scens[name].recent_scores) > config['num_of_runs_to_average']:
-                scens[name].recent_scores.pop(0)
-
-    if config['calculate_averages']:
-        for s in scens:
-            runs = scens[s].recent_scores
-            if runs:  # If the scenario was never played this would result in a div by zero error
-                new_avg = round(sum(runs) / len(runs), 1)
-            if runs and new_avg != scens[s].avg:
-                scens[s].avg = new_avg
-                new_avgs.add(s)
-
-    create_output(new_hs, new_avgs, scens, config["sheet_id_aimlab"])  # check averages here as well
-
 
 def update_kovaaks(config: dict, scens: dict, files: list, blacklist: dict) -> None:
     new_hs = set()
@@ -306,14 +227,6 @@ def process_files_kovaaks():
     update_kovaaks(config, scenarios, unprocessed, blacklist)
     stats = new_stats
 
-
-@debounce(5)
-def process_files_aimlab():
-    global config, sheet_api, scenarios, cs_level_ids, blacklist
-
-    update_aimlab(config, scenarios, cs_level_ids, blacklist)
-
-
 def handle_exception(exc_type, exc_value, exc_traceback):
     """
     Function that replaces sys.excepthook to also log uncaught exceptions, see:
@@ -349,15 +262,6 @@ if __name__ == "__main__":
     logging.debug("Creating service...")
     sheet_api = create_service()
 
-    # Aimlab has its data in /AppData/LocalLow/statespace/aimlab_tb/klutch.bytes
-    if config["game"] == "Aimlab":
-        logging.debug("Game: Aimlab")
-        logging.debug("Initializing scenario data...")
-        scenarios = init_scenario_data_aimlab(config, sheet_api)
-        logging.debug("Initializing CsLevelIds...")
-        cs_level_ids, blacklist = init_cs_level_ids_and_blacklist()
-        update_aimlab(config, scenarios, cs_level_ids, blacklist)
-
     # Kovaaks has its data in the stats folder
     elif config["game"] == "Kovaaks":
         logging.debug("Game: Kovaaks")
@@ -379,9 +283,6 @@ if __name__ == "__main__":
         if config["game"] == "Kovaaks":
             event_handler = LambdaDispatchEventHandler(lambda: process_files_kovaaks())
             observer.schedule(event_handler, config['stats_path'])
-        elif config["game"] == "Aimlab":
-            event_handler = LambdaDispatchEventHandler(lambda: process_files_aimlab())
-            observer.schedule(event_handler, os.path.join(AIMLAB_DB_PATH, os.pardir))
         observer.start()
         try:
             while True:
@@ -393,8 +294,6 @@ if __name__ == "__main__":
         while True:
             if config["game"] == "Kovaaks":
                 process_files_kovaaks()
-            elif config["game"] == "Aimlab":
-                process_files_aimlab()
             try:
                 time.sleep(max(config['polling_interval'], 30))
             except KeyboardInterrupt:

@@ -14,7 +14,6 @@ class Gui:
             self.window.geometry("890x400")
             self.path = StringVar()
             self.sheet_id_kovaaks = StringVar()
-            self.sheet_id_aimlab = StringVar()
             self.calculate_averages = IntVar()
             self.polling_interval = IntVar()
             self.runs_to_average = IntVar()
@@ -34,7 +33,6 @@ class Gui:
             # Give startvalue to variables
             self.calculate_averages.set(int(self.config["calculate_averages"]))
             self.sheet_id_kovaaks.set(self.config["sheet_id_kovaaks"])
-            self.sheet_id_aimlab.set(self.config["sheet_id_aimlab"])
             self.polling_interval.set(int(self.config["polling_interval"]))
             self.path.set(self.config["stats_path"])
             self.runs_to_average.set(int(self.config["num_of_runs_to_average"]))
@@ -44,8 +42,7 @@ class Gui:
                                      "watchdog",
                                      "interval"]
             self.game.set(self.config["game"])
-            self.game_options = ["Aimlab",
-                                 "Kovaaks"]
+            self.game_options = ["Kovaaks"]
 
     def browse_path(self):
         self.path.set(filedialog.askdirectory(initialdir=self.path.get(), title="Open Folder"))
@@ -85,13 +82,7 @@ class Gui:
             id_temp = full_link[full_link.find("/d/") + 3:]
             id_temp = id_temp[:id_temp.find("/")]
             self.sheet_id_kovaaks.set(id_temp)
-        if self.sheet_id_aimlab.get().find("docs.google.com") != -1:
-            full_link = self.sheet_id_aimlab.get()
-            id_temp = full_link[full_link.find("/d/") + 3:]
-            id_temp = id_temp[:id_temp.find("/")]
-            self.sheet_id_aimlab.set(id_temp)
         self.config["sheet_id_kovaaks"] = self.sheet_id_kovaaks.get()
-        self.config["sheet_id_aimlab"] = self.sheet_id_aimlab.get()
         self.config["calculate_averages"] = (self.calculate_averages.get() == 1)
         self.config["num_of_runs_to_average"] = self.runs_to_average.get()
         self.config["polling_interval"] = self.polling_interval.get()
@@ -101,10 +92,7 @@ class Gui:
         self.config["highscore_ranges"] = [entry.get() for entry in self.highscore_ranges_entries]
         self.config["average_ranges"] = [entry.get() for entry in self.average_ranges_entries]
         current_tab = self.notebook.index("current")
-        if current_tab:
-            self.config["game"] = "Aimlab"
-        else:
-            self.config["game"] = "Kovaaks"
+        self.config["game"] = "Kovaaks"
         with open("config.json", "w") as outfile:
             json.dump(self.config, outfile, indent=4)
         self.window.destroy()
@@ -129,17 +117,6 @@ class Gui:
             pre_sheet_id_label_kovaaks.pack(side="left")
             sheet_id_entry_kovaaks.pack(fill="x")
             sheet_id_frame_kovaaks.pack(fill="x")
-
-            # Aimlab tab of the notebook
-            aimlab_frame = Frame(self.notebook)
-
-            # Gui for sheetid of Aimlab sheet
-            sheet_id_frame_aimlab = Frame(aimlab_frame)
-            sheet_id_entry_aimlab = Entry(sheet_id_frame_aimlab, textvariable=self.sheet_id_aimlab)
-            pre_sheet_id_label_aimlab = Label(sheet_id_frame_aimlab, text="Progress Sheet ID: ")
-            pre_sheet_id_label_aimlab.pack(side="left")
-            sheet_id_entry_aimlab.pack(fill="x")
-            sheet_id_frame_aimlab.pack(fill="x")
 
             # Gui for advanced options
             advanced_padding_x = 25
@@ -219,18 +196,12 @@ class Gui:
 
             # Pack all frames
             self.kovaaks_frame.pack(fill="x")
-            aimlab_frame.pack(fill="x")
             self.notebook.add(self.kovaaks_frame, text="Kovaaks")
-            self.notebook.add(aimlab_frame, text="Aimlab")
             self.notebook.pack()
             advanced_frame.pack(fill="x")
             finished_frame.pack()
 
-            # Choose correct notebook tab
-            if self.config["game"] == "Aimlab":
-                self.notebook.select(aimlab_frame)
-            else:
-                self.notebook.select(self.kovaaks_frame)
+            self.notebook.select(self.kovaaks_frame)
 
             # Run mainloop
             self.window.mainloop()
