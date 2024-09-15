@@ -3,6 +3,7 @@ import json
 import logging
 import logging.config
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -20,6 +21,8 @@ from gui import Gui
 from sheets import create_service, read_sheet_range, validate_sheet_range, write_to_cell
 from conf import AIMLAB_DB_PATH
 
+def remove_commas(number_str):
+    return re.sub(r',', '', number_str)
 
 @dataclass
 class Scenario:
@@ -68,12 +71,12 @@ def init_scenario_data_kovaaks(config: dict, sheet_api: googleapiclient.discover
 
     highscores = []
     for r in config['highscore_ranges']:
-        highscores += map(lambda x: float(x), read_sheet_range(sheet_api, config["sheet_id_kovaaks"], r))
+        highscores += map(lambda x: float(remove_commas(x)), read_sheet_range(sheet_api, config["sheet_id_kovaaks"], r))
 
     if config["calculate_averages"]:
         averages = []
         for r in config['average_ranges']:
-            averages += map(lambda x: float(x), read_sheet_range(sheet_api, config["sheet_id_kovaaks"], r))
+            averages += map(lambda x: float(remove_commas(x)), read_sheet_range(sheet_api, config["sheet_id_kovaaks"], r))
 
     if len(highscores) < len(scens):  # Require highscore cells but not averages
         handle_error('range_size')
